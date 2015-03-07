@@ -1,5 +1,12 @@
 package dupfinder
 
+import (
+	"crypto/md5"
+	"fmt"
+	"io"
+	"os"
+)
+
 type sizeFileInfoIndex map[int64]map[string]*KeyFileInfo
 
 func groupFilesBySize(p string, depth int) (*sizeFileInfoIndex, error) {
@@ -54,5 +61,22 @@ func match(path1, path2 string) error {
 	}
 
 	p1Index, p2Index := *p1IndexPtr, *p2IndexPtr
+	clashes := sizeClashes(p1Index, p2Index)
+	fmt.Println("clashes", clashes)
 	return nil
+}
+
+func md5Checksum(p string) (string, error) {
+	handle, err := os.Open(p)
+	if err != nil || handle == nil {
+		return "", err
+	}
+
+	defer handle.Close()
+	hash := md5.New()
+	_, err = io.Copy(hash, handle)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
