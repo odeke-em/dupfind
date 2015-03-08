@@ -7,6 +7,11 @@ import (
 	"os"
 )
 
+type pair struct {
+	left  interface{}
+	right interface{}
+}
+
 type sizeFileInfoIndex map[int64]map[string]*KeyFileInfo
 
 func groupFilesBySize(p string, depth int) (*sizeFileInfoIndex, error) {
@@ -49,21 +54,35 @@ func sizeClashes(p1Index, p2Index sizeFileInfoIndex) []int64 {
 	return clashes
 }
 
-func match(path1, path2 string) error {
+func match(path1, path2 string) (*map[int64]*pair, error) {
 	p1IndexPtr, p1Err := groupFilesBySize(path1, -1)
 	if p1Err != nil {
-		return p1Err
+		return nil, p1Err
 	}
 
 	p2IndexPtr, p2Err := groupFilesBySize(path2, -1)
 	if p2Err != nil {
-		return p2Err
+		return nil, p2Err
 	}
 
 	p1Index, p2Index := *p1IndexPtr, *p2IndexPtr
 	clashes := sizeClashes(p1Index, p2Index)
-	fmt.Println("clashes", clashes)
-	return nil
+
+	clashMap := map[int64]*pair{}
+
+	for _, size := range clashes {
+		p := pair{
+			left:  p1Index[size],
+			right: p2Index[size],
+		}
+		left, _ := p1Index[size]
+		right, _ := p2Index[size]
+		fmt.Printf("\nsize: %d left: %v right: %v\n\n", size, left, right)
+		clashMap[size] = &p
+	}
+
+	fmt.Println("clashes", clashes) // , clashMap)
+	return nil, nil
 }
 
 func md5Checksum(p string) (string, error) {

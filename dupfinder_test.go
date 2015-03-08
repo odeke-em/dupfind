@@ -28,7 +28,7 @@ func TestListing(t *testing.T) {
 		if kv.Key == "" {
 			t.Errorf("expected a non empty path")
 		}
-		fmt.Println(kv.Key)
+		// fmt.Println(kv.Key)
 	}
 
 	dirsChan, dirErr := listDirs("/", maxDepth)
@@ -44,15 +44,19 @@ func TestListing(t *testing.T) {
 		if kv.Key == "" {
 			t.Errorf("expected a non empty path")
 		}
-		fmt.Println(kv.Key)
+		// fmt.Println(kv.Key)
 	}
 }
 
 func TestGroupFilesBySize(t *testing.T) {
 	var p = "/"
-	sizeBucketMap, err := groupFilesBySize(p, 2)
+	_, err := groupFilesBySize(p, 2)
 	if err != nil {
 		t.Errorf("expecting successful discovery instead got %v", err)
 	}
-	fmt.Println(sizeBucketMap)
+}
+
+func TestClashMatch(t *testing.T) {
+	_, err := match(".", "..")
+	fmt.Println("err", err)
 }
