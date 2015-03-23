@@ -12,6 +12,14 @@ func spliceChannels(from, to chan *KeyFileInfo) {
 	}
 }
 
+func symlinkResolver(symPath string) (os.FileInfo, error) {
+	resolvedPath, err := filepath.EvalSymlinks(symPath)
+	if err != nil {
+		return nil, err
+	}
+	return os.Stat(resolvedPath)
+}
+
 func list(p string, depth int, pass checker) (chan *KeyFileInfo, error) {
 	localInfo, err := os.Stat(p)
 	if err != nil || localInfo == nil {
@@ -45,6 +53,14 @@ func list(p string, depth int, pass checker) (chan *KeyFileInfo, error) {
 
 		for _, file := range listing {
 			fullPath := filepath.Join(p, file.Name())
+			if symlink(file) {
+				resolvedFile, fErr := symlinkResolver(fullPath)
+				if fErr != nil {
+					continue
+				}
+				file = resolvedFile
+			}
+
 			isDir := file.IsDir()
 
 			if pass(isDir) {

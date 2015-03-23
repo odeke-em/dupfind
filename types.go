@@ -21,4 +21,8 @@ func file(isDir bool) bool {
 	return !isDir
 }
 
+func symlink(f os.FileInfo) bool {
+	return (f.Mode() & os.ModeSymlink) == 0
+}
+
 type lister func(string, int) (chan *KeyFileInfo, error)
