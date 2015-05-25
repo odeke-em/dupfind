@@ -13,6 +13,7 @@ type pair struct {
 }
 
 type sizeFileInfoIndex map[int64]map[string]*KeyFileInfo
+type checksumFileInfoIndex map[string][]*KeyFileInfo
 
 func groupFilesBySize(p string, depth int) (*sizeFileInfoIndex, error) {
 	kvChan, err := listFiles(p, depth)
@@ -39,6 +40,104 @@ func groupFilesBySize(p string, depth int) (*sizeFileInfoIndex, error) {
 	}
 
 	return &index, nil
+}
+
+var GroupFilesBySize = groupFilesBySize
+
+func groupFilesByChecksum(p string, depth int) (*checksumFileInfoIndex, error) {
+	sfIndexPtr, err := groupFilesBySize(p, depth)
+	if err != nil {
+		return nil, err
+	}
+
+	sfIndex := *sfIndexPtr
+	mapping := make(checksumFileInfoIndex)
+
+	for _, bucket := range sfIndex {
+		clashes := checksumBucket(bucket)
+		for cksum, ckmap := range clashes {
+			retr, rOk := mapping[cksum]
+			if !rOk {
+				retr = []*KeyFileInfo{}
+			}
+
+			for _, kf := range ckmap {
+				retr = append(retr, kf)
+			}
+			mapping[cksum] = retr
+		}
+	}
+
+	return &mapping, nil
+}
+
+var GroupFilesByChecksum = groupFilesByChecksum
+
+func checksumBucket(bucket map[string]*KeyFileInfo) map[string]map[string]*KeyFileInfo {
+	waits := uint64(0)
+	waitChan := make(chan *pair)
+
+	for p, kf := range bucket {
+		if kf == nil || kf.Value == nil {
+			continue
+		}
+
+		waits += 1
+		go func(pp string, kff *KeyFileInfo) {
+			cksum, ckErr := md5Checksum(pp)
+			var pr *pair
+			if ckErr == nil {
+				pr = &pair{
+					left: cksum,
+					right: pair{
+						left:  pp,
+						right: kff,
+					},
+				}
+			}
+
+			waitChan <- pr
+		}(p, kf)
+	}
+
+	kfmap := make(map[string]map[string]*KeyFileInfo)
+
+	for i := uint64(0); i < waits; i += 1 {
+		pr := <-waitChan
+		if pr == nil {
+			continue
+		}
+
+		cksum, cOk := pr.left.(string)
+		if !cOk {
+			continue
+		}
+
+		ppVal, pOk := pr.right.(pair)
+		if !pOk {
+			continue
+		}
+
+		pp, ppOk := ppVal.left.(string)
+		if !ppOk {
+			continue
+		}
+
+		kff, kOk := ppVal.right.(*KeyFileInfo)
+		if !kOk {
+			continue
+		}
+
+		retr, rOk := kfmap[cksum]
+		if !rOk {
+			retr = make(map[string]*KeyFileInfo)
+		}
+
+		retr[pp] = kff
+		kfmap[cksum] = retr
+	}
+
+	return kfmap
 }
 
 func sizeClashes(p1Index, p2Index sizeFileInfoIndex) []int64 {
@@ -90,6 +189,7 @@ func md5Checksum(p string) (string, error) {
 	if err != nil || handle == nil {
 		return "", err
 	}
+	// TODO: skip if dir
 
 	defer handle.Close()
 	hash := md5.New()
